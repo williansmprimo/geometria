@@ -6,14 +6,15 @@ import 	sys
 import os
 import 	pyglet
 from 	pyglet.window  	import key
-import math 
+import math
+import random
 
 WIN_X 	= 500
 WIN_Y 	= 500
 
 drawMDT	= True
-EPS = 100
-nivelMaximo = 3
+EPS = 5
+nivelMaximo = 10
 
 
 
@@ -49,7 +50,7 @@ class Ponto:
 	def distancia(self, b):
 		x1 = self.x - b.x
 		y1 = self.y - b.y
-		return math.sqrt(x1 * x1 + y1 * y1);
+		return math.floor(math.sqrt(x1 * x1 + y1 * y1))
 
 class Linha:
 	def __init__(self, a, b):
@@ -57,7 +58,11 @@ class Linha:
 		self.b = b
 
 	def aEsquerda(self, c):
-  		return (self.b.x - self.a.x)*(c.y - self.a.y) - (self.b.y - self.a.y)*(c.x - self.a.x) > 0
+  		return ((self.b.x - self.a.x)*(c.y - self.a.y) - (self.b.y - self.a.y)*(c.x - self.a.x)) > 0
+		#print('prod escalar: ', (self.b.x - self.a.x)*(c.y - self.a.y) - (self.b.y - self.a.y)*(c.x - self.a.x))
+		#return (self.b.x - self.a.x)*(c.y - self.a.y) > (self.b.y - self.a.y)*(c.x - self.a.x)
+		#return (b.x - a.x)*(c.y - a.y) > (b.y - a.y)*(c.x - a.x);
+		#return random.randint(0, 10) > 5
 
 class Triangulo:
 	def __init__(self, a, b, c):
@@ -82,7 +87,7 @@ def gerarPontosImagem(imagem):
 	for i in range(imagem.width):		
 		for j in range(imagem.height):
 			elevacao = amostras[i * pitch + j]
-			p = Ponto(i, j, elevacao);
+			p = Ponto(i, j, elevacao)
 			pontos.append(p)
 
 	return pontos
@@ -96,7 +101,7 @@ def dividirPontos(pontos, linha):
 			esquerda.append(p)
 		else:
 			direita.append(p)
-	print('div: ', len(esquerda), ', ', len(direita))
+	# print('div: ', len(esquerda), ', ', len(direita))
 	return esquerda, direita
 
 def ordenarTriangulo(triangulo):
@@ -104,18 +109,20 @@ def ordenarTriangulo(triangulo):
 	b = triangulo.b
 	c = triangulo.c
 	d1 = a.distancia(b)
-	d2 = a.distancia(c)
-	d3 = b.distancia(c)
-	if d1 >= d2 and d1 >= d3:
+	d2 = b.distancia(c)
+	d3 = c.distancia(a)
+	print('dist: ', d1, ', ', d2, ', ', d3)
+	if (d1 > d2) and (d1 > d3):
 		return Triangulo(a, b, c)
-	if d2 >= d1 and d2 >= d3:
-		return Triangulo(a, c, b)
-	if d3 >= d1 and d3 >= d2:
+	if (d2 > d1) and (d2 > d3):
 		return Triangulo(b, c, a)
+	if (d3 > d1) and (d3 > d2):
+		return Triangulo(c, a, b)
 
 def deveDividir(pontos, eps):
 
 	if len(pontos) <= 1:
+		print('Entrou aqui...........................................')
 		return False
 
 	contElev = [0] * 256
@@ -133,11 +140,13 @@ def deveDividir(pontos, eps):
 
 	eSoma = 0
 	for k in range(256):
-		eSoma += contElev[k] * k
+		# eSoma += contElev[k] * k
+		eSoma += contElev[k]
 
 	eMedia = eSoma / len(pontos)
 
-	return abs(eMin - eMax) > eps
+	print('dif: ', abs(eMax - eMin))
+	return abs(eMax - eMin) > eps
 
 def continuarTriangulacao(raiz, eps, nivel):
 	if(nivel >= nivelMaximo):
@@ -145,12 +154,12 @@ def continuarTriangulacao(raiz, eps, nivel):
 	# print("Triangulo: (", raiz.triangulo.a.x, raiz.triangulo.b.x, raiz.triangulo.c.x)
 	# print(raiz.triangulo.a.y, raiz.triangulo.b.y, raiz.triangulo.c.y, ")")
 	if(deveDividir(raiz.pontos, eps)):
-		tri = ordenarTriangulo(raiz.triangulo);
+		tri = ordenarTriangulo(raiz.triangulo)
 		meio = tri.a.meio(tri.b)
 		linha = Linha(tri.c, meio)
 		pts_esq, pts_dir = dividirPontos(raiz.pontos, linha)
-		tri_esq = Triangulo(tri.a, tri.c, meio)
-		tri_dir = Triangulo(tri.b, tri.c, meio)
+		tri_esq = ordenarTriangulo(Triangulo(tri.a, tri.c, meio))
+		tri_dir = ordenarTriangulo(Triangulo(tri.b, tri.c, meio))
 		raiz.esquerda = NoArvore(pts_esq, tri_esq)
 		raiz.direita = NoArvore(pts_dir, tri_dir)
 		continuarTriangulacao(raiz.esquerda, eps, nivel + 1)
@@ -167,26 +176,25 @@ def iniciarTriangulacao(imagem):
 	x3 = 1
 	y3 = WIN_Y
 
-	te = Triangulo(Ponto(x0, y0), Ponto(x3, y3), Ponto(x2, y2))
-	td = Triangulo(Ponto(x0, y0), Ponto(x1, y1), Ponto(x2, y2))
+	te = ordenarTriangulo(Triangulo(Ponto(x0, y0), Ponto(x3, y3), Ponto(x2, y2)))
+	td = ordenarTriangulo(Triangulo(Ponto(x0, y0), Ponto(x1, y1), Ponto(x2, y2)))
 	linha = Linha(Ponto(x0, y0), Ponto(x2, y2))
 
 	pontos = gerarPontosImagem(imagem)
-	pe, pd = dividirPontos(pontos, linha);
+	pe, pd = dividirPontos(pontos, linha)
 
 	raiz = NoArvore(pontos, None)
-	raiz.esquerda = NoArvore(pe, te);
-	raiz.direira = NoArvore(pd, td);
+	raiz.esquerda = NoArvore(pe, te)
+	raiz.direita = NoArvore(pd, td)
 
 	continuarTriangulacao(raiz.esquerda, EPS, 1)
-	continuarTriangulacao(raiz.direira, EPS, 1)
+	continuarTriangulacao(raiz.direita, EPS, 1)
 
 	return raiz
 
 
 def imprimirTriangulo(triangulo, bat, fill, triangles):
-	print("Triangulo: (", triangulo.a.x, triangulo.b.x, triangulo.c.x)
-	print(triangulo.a.y, triangulo.b.y, triangulo.c.y, ")")
+	print("Triangulo: (", triangulo.a.x, triangulo.b.x, triangulo.c.x, triangulo.a.y, triangulo.b.y, triangulo.c.y, ")")
 
 	x0 = triangulo.a.x
 	y0 = triangulo.a.y
@@ -195,18 +203,35 @@ def imprimirTriangulo(triangulo, bat, fill, triangles):
 	x2 = triangulo.c.x
 	y2 = triangulo.c.y
 
-	tri = pyglet.shapes.Line(x0, y0, x1, y1, color=(255, 0, 0, 255), batch=bat)
+	tri = pyglet.shapes.Line(x0, y0, x1, y1, color=(0, 255, 0, 255), batch=bat)
 	triangles.append(tri)
+	#tri = pyglet.shapes.Line(x1, y1, x2, y2, color=(0, 255, 0, 255), batch=bat)
 	tri = pyglet.shapes.Line(x1, y1, x2, y2, color=(0, 255, 0, 255), batch=bat)
 	triangles.append(tri)
-	tri = pyglet.shapes.Line(x2, y2, x0, y0, color=(0, 0, 255, 255), batch=bat)
+	#tri = pyglet.shapes.Line(x2, y2, x0, y0, color=(0, 0, 255, 255), batch=bat)
+	tri = pyglet.shapes.Line(x2, y2, x0, y0, color=(0, 255, 0, 255), batch=bat)
 	triangles.append(tri)
+
+	# Indicador triangulo
+	xt = (x0 + x1 + x2) // 3
+	yt = (y0 + y1 + y2) // 3
+	triangles.append(pyglet.shapes.Circle(xt, yt, 1, color=(0, 255, 0, 255), batch=bat))
+
+
+def imprimir_pontos(raiz, bat, triangles):
+	a = 1
+	for p in raiz.pontos:
+		a += 1
+		if(a % 30 == 0):
+			triangles.append(pyglet.shapes.Circle(p.x, p.y, 2, color=(0, 255, 0, 255), batch=bat))
 
 
 def imprimirArvoreTriangular(raiz, bat, fill, tri):
 	if(raiz != None):
 		if(raiz.triangulo != None):
 			imprimirTriangulo(raiz.triangulo, bat, fill, tri)
+		#else:
+		#	imprimir_pontos(raiz, bat, tri)
 		imprimirArvoreTriangular(raiz.esquerda, bat, fill, tri)
 		imprimirArvoreTriangular(raiz.direita, bat, fill, tri)
 
@@ -222,19 +247,21 @@ if __name__ == '__main__':
 
 	global window, MDT_Image, MDT_Triang
 
+	# Para testar com outra imagem deve-se alterar o caminho
+	#MDT_Image 	= leImagem('./DEMs/Terreno1K.png')
 	MDT_Image 	= leImagem('./DEMs/Terreno0.5K.jpg')
 
 	WIN_X = MDT_Image.width
 	WIN_Y = MDT_Image.height
 
-	window = pyglet.window.Window(WIN_X, WIN_Y)
+	window = pyglet.window.Window(WIN_X + 5, WIN_Y + 5)
 	window.set_caption('Visualizando um Modelo Digital de Terreno')
 
 	MDT_Triang 	= pyglet.graphics.Batch()
 
 	tri = []
-	raiz = iniciarTriangulacao(MDT_Image);
-	imprimirArvoreTriangular(raiz, MDT_Triang, True, tri);
+	raiz = iniciarTriangulacao(MDT_Image)
+	imprimirArvoreTriangular(raiz, MDT_Triang, True, tri)
 
 	@window.event
 	def on_draw():
@@ -247,6 +274,7 @@ if __name__ == '__main__':
 		if drawMDT:
 			MDT_Image.blit(0, 0, 0)
 		else:
+			MDT_Image.blit(0, 0, 0)
 			MDT_Triang.draw()
 
 	# key press event	
